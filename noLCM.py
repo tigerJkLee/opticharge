@@ -1,13 +1,14 @@
 from gurobipy import*
 import numpy as np
 
-D = np.array([
-    [14, 14, 14],  # charging
-    [20, 20 ,20]   # flying
-])
-m = 2  # number of charging pads
-
-
+D = np.array([[13, 13, 13], # charging
+              [20, 20, 20]]) # flying
+m = 2 # number of charging pads
+# D = np.array([
+#     [5, 7, 6, 8, 5, 7, 12, 14, 16, 18],  # charging
+#     [25, 23, 22, 20, 25, 23, 18, 16, 14, 12]   # flying
+# ])
+# m = 3  # number of charging pads
 
 n = D.shape[1] # number of vehicles
 g = np.gcd.reduce(np.concatenate((D[0, :], D[1, :]), axis=None)) # 5 최대공약수
