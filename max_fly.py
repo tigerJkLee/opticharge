@@ -2,11 +2,10 @@ from gurobipy import*
 import numpy as np
 
 D = np.array([
-    [14, 14, 14],  # charging
-    [20, 20 ,20]   # flying
+    [14, 14, 14, 14],  # charging
+    [20, 20 ,20, 20]   # flying
 ])
 m = 2  # number of charging pads
-
 
 
 n = D.shape[1] # number of vehicles
