@@ -32,7 +32,7 @@ magma_colors = plt.get_cmap('magma')(np.linspace(0, 1, 100))
 # vertices 생성 시 검정 박스 영역을 제외하고 생성
 vertices = np.array([np.random.rand(2) * 100 for _ in range(num_vertices) if not (45 <= np.random.rand(2)[0] * 100 <= 55 and 45 <= np.random.rand(2)[1] * 100 <= 55)])
 
-# UAV별 방문할 vertices 분배, vertices 개수를 초과하지 않도록 확인
+# # UAV별 방문할 vertices 분배, vertices 개수를 초과하지 않도록 확인
 uav_routes = np.array_split(np.random.permutation(len(vertices)), num_uavs)
 
 # 배터리 상태 및 위치 초기화
@@ -132,11 +132,6 @@ def update(frame):
 
         if distance > uav_speed:
             direction = direction / distance * uav_speed
-        else:
-            if not visited[uav_routes[i][frame % len(uav_routes[i])]]:
-                visited[uav_routes[i][frame % len(uav_routes[i])]] = True
-                visit_time[uav_routes[i][frame % len(uav_routes[i])]] = frame
-                color_indices[i] = 99  # 최대 색상 인덱스로 설정
 
         uav_positions[i] += direction
 
