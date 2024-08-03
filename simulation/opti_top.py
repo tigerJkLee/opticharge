@@ -1,7 +1,6 @@
 import numpy as np
 import random
 import matplotlib.pyplot as plt
-import networkx as nx
 
 # Parameters
 num_nodes = 30
