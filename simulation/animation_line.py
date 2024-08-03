@@ -66,38 +66,65 @@ def route_distance(route):
         dist += np.linalg.norm(route[i - 1] - route[i])
     return dist
 
-# 2-opt 알고리즘을 적용하는 함수
-def apply_2opt(route, improve_threshold=0.01):
-    best_route = route
+# # 2-opt 알고리즘을 적용하는 함수
+# def apply_2opt(route, improve_threshold=0.01):
+#     best_route = route
+#     improved = True
+#     while improved:
+#         improved = False
+#         for i in range(1, len(route) - 2):
+#             for j in range(i + 2, len(route)):
+#                 if j - i == 1: continue  # 이웃한 점은 변경 X
+#                 new_route = best_route[:]
+#                 new_route[i:j] = best_route[j-1:i-1:-1]  # 두 점 사이를 뒤집기
+#                 if route_distance(new_route) < route_distance(best_route) - improve_threshold:
+#                     best_route = new_route
+#                     improved = True
+#         route = best_route
+#     return best_route
+
+# # Fix (50,100) as the starting and ending point
+# def optimize_path(paths):
+#     start_end_point = np.array([50, 100])
+#     optimized_paths = {}
+#     for key, path in paths.items():
+#         if path:  # 경로가 비어있지 않은 경우에만 처리
+#             # 각 경로에 시작점과 끝점 추가
+#             full_path = np.vstack([start_end_point, np.array(path), start_end_point])
+#             optimized_path = apply_2opt(full_path)
+#             optimized_paths[key] = optimized_path
+#     return optimized_paths
+
+def apply_2opt(route, improve_threshold=0.01, max_iterations=100):
+    best_route = route[:]
+    iteration = 0
     improved = True
-    while improved:
+    while improved and iteration < max_iterations:
         improved = False
-        for i in range(1, len(route) - 2):
-            for j in range(i + 2, len(route)):
-                if j - i == 1: continue  # 이웃한 점은 변경 X
+        for i in range(1, len(best_route) - 2):
+            for j in range(i + 2, len(best_route)):
+                if j - i == 1: continue  # Skip adjacent points
                 new_route = best_route[:]
-                new_route[i:j] = best_route[j-1:i-1:-1]  # 두 점 사이를 뒤집기
+                new_route[i:j] = best_route[j-1:i-1:-1]  # Reverse the segment between i and j
                 if route_distance(new_route) < route_distance(best_route) - improve_threshold:
-                    best_route = new_route
+                    best_route = new_route[:]
                     improved = True
-        route = best_route
+        iteration += 1
     return best_route
 
-# Fix (50,100) as the starting and ending point
+# Optimizing paths with a refined approach
 def optimize_path(paths):
     start_end_point = np.array([50, 100])
     optimized_paths = {}
     for key, path in paths.items():
-        if path:  # 경로가 비어있지 않은 경우에만 처리
-            # 각 경로에 시작점과 끝점 추가
+        if path:
             full_path = np.vstack([start_end_point, np.array(path), start_end_point])
-            optimized_path = apply_2opt(full_path)
+            optimized_path = apply_2opt(full_path, improve_threshold=0.01, max_iterations=50)
             optimized_paths[key] = optimized_path
     return optimized_paths
 
 # 각 UAV별 랜덤 경로 설정
-paths = {0: [], 1: [], 2: []}
-
+paths = {0: [], 1: [], 2: [], 3: []}
 for vertex in vertices:
     quadrant = classify_quadrants(vertex)
     paths[quadrant].append(vertex)
@@ -110,14 +137,15 @@ paths = optimize_path(paths)
 
 # UAV 초기 위치 설정
 uav_positions = np.array([charging_station for _ in range(num_uavs)], dtype=float)
-uav_paths = {uav: [uav_positions[uav].copy()] for uav in range(num_uavs)}
+# uav_paths = {uav: [uav_positions[uav].copy()] for uav in range(num_uavs)}
+# current_targets = [0] * num_uavs  # 모든 UAV의 시작 목표 인덱스를 0으로 설정
+uav_paths = {uav: paths[uav] if uav in paths else [] for uav in range(num_uavs)}
+current_targets = [0] * num_uavs
 
 # Initialize lines for each UAV
 lines = {uav: ax1.plot([], [], color=uav_colors[uav], linewidth=2, label=f'UAV {uav}')[0] for uav in range(num_uavs)}
 path_data = {uav: np.array([paths[uav][0]]) for uav in range(num_uavs)}  # Initialize with the first coordinate
 
-# UAV의 현재 목표 위치 인덱스를 저장하는 배열 초기화
-current_targets = [0] * num_uavs  # 모든 UAV의 시작 목표 인덱스를 0으로 설정
 
 def interpolate_position(start, end, fraction):
     """Linearly interpolate between start and end points."""
