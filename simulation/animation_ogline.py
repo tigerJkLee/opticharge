@@ -13,8 +13,15 @@ num_uavs = 3
 uav_numbers = [1,2,7]
 num_charging_docks = 2
 num_vertices = 40  # 노드 수
-frame_number = 37  # 프레임 수
+frame_number = 42  # 프레임 수
 uav_speed = 16
+
+# 비행 시퀀스 정의
+flight_sequences = {
+    0: [[5, 7], [11, 13], [17, 19], [23, 25], [29, 31], [35, 37]],
+    1: [[8, 12], [17, 21], [26, 30], [35, 39]],
+    2: [[2, 5], [14, 23], [32, 41]]
+}
 
 battery_drain_uav1 = 30
 battery_charge_uav1 = 30
@@ -22,13 +29,20 @@ battery_drain_uav2 = 18
 battery_charge_uav2 = 22.5
 battery_drain_uav3 = 9
 battery_charge_uav3 = 11.25
+
 charging_station = np.array([50, 100], dtype=float)  # 중앙 위치
 magma_colors = plt.get_cmap('magma')(np.linspace(0, 1, 100))
 
 # vertices 생성 시 검정 박스 영역을 제외하고 생성
 vertices = np.array([np.random.rand(2) * 100 for _ in range(num_vertices) if not (45 <= np.random.rand(2)[0] * 100 <= 55 and 45 <= np.random.rand(2)[1] * 100 <= 55)])
 
-# UAV별 방문할 vertices 분배, vertices 개수를 초과하지 않도록 확인
+# 방문 기록과 UAV 위치 초기화
+visited = np.zeros((num_uavs, num_vertices), dtype=bool)
+uav_positions = np.tile(charging_station, (num_uavs, 1))
+
+# 비행 중 여부와 현재 목표
+in_flight = np.zeros(num_uavs, dtype=bool)
+current_targets = np.full(num_uavs, -1, dtype=int)
 
 # 배터리 상태 및 위치 초기화
 battery_levels = [10.0, 10.0, 46.0]
@@ -45,6 +59,11 @@ color_indices = np.zeros(num_vertices, dtype=int)  # 색상 인덱스 초기화
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 7), gridspec_kw={'width_ratios': [1, 0.5]})
 plt.subplots_adjust(top=0.75)
+
+def reset_visits(uav_id):
+    """ 방문 기록을 리셋하고 모든 점을 다시 방문 가능하게 설정 """
+    visited[uav_id, :] = False
+    current_targets[uav_id] = -1  # 목표 초기화
 
 # 사분면별로 점 분류
 def classify_quadrants(point):
@@ -272,6 +291,34 @@ def update(frame):
     text_handle.set_text(f"Number of charging docks = {num_charging_docks}, Number of vehicles = {num_uavs}")
     
     for i in range(num_uavs):
+        # Check if UAV should start or stop flying
+        flight_active = False
+        for intervals in flight_sequences[i]:
+            if intervals[0] <= frame <= intervals[1]:
+                flight_active = True
+                break
+        
+        # Reset position and visits at the start of each new interval
+        if frame in [seq[0] for seq in flight_sequences[i]]:
+            uav_positions[i] = charging_station
+            reset_visits(i)
+        
+        if flight_active:
+            # Select a new target if the current one is reached or not set
+            if current_targets[i] == -1 or visited[i, current_targets[i]]:
+                possible_targets = np.where(~visited[i])[0]
+                current_targets[i] = np.random.choice(possible_targets) if possible_targets.size > 0 else -1
+
+            # Move towards the target
+            if current_targets[i] != -1:
+                target_position = vertices[current_targets[i]]
+                direction = target_position - uav_positions[i]
+                uav_positions[i] += direction / np.linalg.norm(direction)
+
+                # Check if the target is reached
+                if np.linalg.norm(uav_positions[i] - target_position) < 1:
+                    visited[i, current_targets[i]] = True
+
 
         # 여기서부터 drone
         if (i < 2 and frame > 20) or (i >= 2 and frame <= 14):
@@ -436,7 +483,7 @@ ani = animation.FuncAnimation(fig, update, frames=frame_number, init_func=init, 
 writer = FFMpegWriter(fps=15, metadata=dict(artist='Me'), bitrate=1800)
 
 # Save the animation
-ani.save('uav_simulation6.mp4', writer=writer)
+ani.save('uav_simulation7.mp4', writer=writer)
 
 # Display the plot
 plt.show()
