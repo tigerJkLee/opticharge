@@ -60,12 +60,7 @@ color_indices = np.zeros(num_vertices, dtype=int)  # 색상 인덱스 초기화
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 7), gridspec_kw={'width_ratios': [1, 0.5]})
 plt.subplots_adjust(top=0.75)
 
-def reset_visits(uav_id):
-    """ 방문 기록을 리셋하고 모든 점을 다시 방문 가능하게 설정 """
-    visited[uav_id, :] = False
-    current_targets[uav_id] = -1  # 목표 초기화
 
-# 사분면별로 점 분류
 def classify_quadrants(point):
     x, y = point
     if x > 50 and y > 50:
@@ -212,19 +207,17 @@ def update_battery_levels(frame, battery_levels):
             elif i == 1: # UAV2
                 if frame <= 4:
                     battery_levels[i] += battery_charge_uav2
-                elif 4 < frame <= 6:
-                    battery_levels[i] = 100
-                elif 6 < frame <= 11:
+                elif 5 < frame <= 9:
                     battery_levels[i] -= battery_drain_uav2
-                elif 11 < frame <= 15:
+                elif 9 < frame <= 13:
                     battery_levels[i] += battery_charge_uav2
-                elif 15 < frame <= 20:
+                elif 13 < frame <= 18:
                     battery_levels[i] -= battery_drain_uav2
-                elif 20 < frame <= 24:
+                elif 18 < frame <= 22:
                     battery_levels[i] += battery_charge_uav2
-                elif 24 < frame <= 29:
+                elif 22 < frame <= 27:
                     battery_levels[i] -= battery_drain_uav2
-                elif 29 < frame <= 33:
+                elif 27 < frame <= 31:
                     battery_levels[i] += battery_charge_uav2
                 else:
                     battery_levels[i] -= battery_drain_uav2
@@ -248,7 +241,6 @@ for frame in range(0, frame_number):
     battery_history[:, frame] = battery_levels
     
    
-# print(battery_history)
 def update(frame):
     # 그래픽 객체만 초기화    # Iterate over the patches and remove each one
     for patch in ax1.patches:
@@ -263,11 +255,6 @@ def update(frame):
     ax2.set_title("Current Battery Status")
     ax1.add_patch(plt.Rectangle(charging_station - 5, 10, 10, color='black'))
 
-    # Setting up the text for UAV2's delay on specific frames
-    if frame == 5 or frame == 6:
-        ax2.text(0.5, 0.5, "UAV2 got delayed", transform=ax2.transAxes, 
-                 horizontalalignment='center', verticalalignment='center', 
-                 fontsize=12, color='red')
         
     # Reset limits after clearing
     ax1.set_xlabel("X (m)")
@@ -291,34 +278,6 @@ def update(frame):
     text_handle.set_text(f"Number of charging docks = {num_charging_docks}, Number of vehicles = {num_uavs}")
     
     for i in range(num_uavs):
-        # Check if UAV should start or stop flying
-        flight_active = False
-        for intervals in flight_sequences[i]:
-            if intervals[0] <= frame <= intervals[1]:
-                flight_active = True
-                break
-        
-        # Reset position and visits at the start of each new interval
-        if frame in [seq[0] for seq in flight_sequences[i]]:
-            uav_positions[i] = charging_station
-            reset_visits(i)
-        
-        if flight_active:
-            # Select a new target if the current one is reached or not set
-            if current_targets[i] == -1 or visited[i, current_targets[i]]:
-                possible_targets = np.where(~visited[i])[0]
-                current_targets[i] = np.random.choice(possible_targets) if possible_targets.size > 0 else -1
-
-            # Move towards the target
-            if current_targets[i] != -1:
-                target_position = vertices[current_targets[i]]
-                direction = target_position - uav_positions[i]
-                uav_positions[i] += direction / np.linalg.norm(direction)
-
-                # Check if the target is reached
-                if np.linalg.norm(uav_positions[i] - target_position) < 1:
-                    visited[i, current_targets[i]] = True
-
 
         # 여기서부터 drone
         if (i < 2 and frame > 20) or (i >= 2 and frame <= 14):
@@ -400,7 +359,7 @@ def update(frame):
                     battery_levels[i] -= battery_drain_uav1
                 elif 30 < frame <= 33:
                     battery_levels[i] += battery_charge_uav1
-                elif 33 < frame <= 34:
+                elif 33 < frame <= 36:
                     battery_levels[i] -= battery_drain_uav1
                 else:
                     battery_levels[i] += battery_charge_uav1
@@ -408,19 +367,17 @@ def update(frame):
             elif i == 1: # UAV2
                 if frame <= 4:
                     battery_levels[i] += battery_charge_uav2
-                elif 4 < frame <= 6:
-                    battery_levels[i] = 100
-                elif 6 < frame <= 11:
+                elif 5 < frame <= 9:
                     battery_levels[i] -= battery_drain_uav2
-                elif 11 < frame <= 15:
+                elif 9 < frame <= 13:
                     battery_levels[i] += battery_charge_uav2
-                elif 15 < frame <= 20:
+                elif 13 < frame <= 18:
                     battery_levels[i] -= battery_drain_uav2
-                elif 20 < frame <= 24:
+                elif 18 < frame <= 22:
                     battery_levels[i] += battery_charge_uav2
-                elif 24 < frame <= 29:
+                elif 22 < frame <= 27:
                     battery_levels[i] -= battery_drain_uav2
-                elif 29 < frame <= 33:
+                elif 27 < frame <= 31:
                     battery_levels[i] += battery_charge_uav2
                 else:
                     battery_levels[i] -= battery_drain_uav2
@@ -483,7 +440,7 @@ ani = animation.FuncAnimation(fig, update, frames=frame_number, init_func=init, 
 writer = FFMpegWriter(fps=15, metadata=dict(artist='Me'), bitrate=1800)
 
 # Save the animation
-ani.save('uav_simulation7.mp4', writer=writer)
+ani.save('uav_simulation_og.mp4', writer=writer)
 
 # Display the plot
 plt.show()
