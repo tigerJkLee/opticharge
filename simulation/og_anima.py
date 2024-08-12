@@ -35,56 +35,55 @@ magma_colors = plt.get_cmap('magma')(np.linspace(0, 1, 100))
 
 # vertices 생성 시 검정 박스 영역을 제외하고 생성
 vertices = np.array([
-    [61.5, 63.4],
-    [33.4, 74.9],
-    [4.2, 59.6],
-    [33.8, 26.9],
-    [64.1, 18.4],
-    [83.4, 21.7],
-    [57.2, 80.9],
-    [35.4, 29.4],
-    [73.8, 29.6],
-    [52.8, 57.4],
     [1.1, 19.9],
-    [89.7, 12.9],
-    [49.7, 14.6],
-    [64.5, 63.3],
-    [74.3, 2.8],
-    [27.9, 64.7],
-    [17.7, 5.2],
-    [95.1, 71.4],
-    [44.6, 60.5],
-    [85.4, 69.1],
-    [84.7, 77.8],
-    [7.9, 31.6],
-    [36.1, 48.6],
-    [17.3, 10.1],
-    [70.2, 71.9],
-    [81.0,  4.5],
-    [52.6, 16.7],
-    [27.0, 36.4],
-    [82.1 , 81.5],
-    [8.3 , 67.6],
-    [75.6 , 52.4],
-    [57.6, 51.2],
-    [21.6, 38.1],
-    [61.7, 59.6],
-    [79.6, 18.1],
-    [56.8, 62.8],
-    [72.8, 69.9],
-    [7.4, 39.3],
-    [26.7, 2.0],
-    [88.7, 97.4],
-    [24.7, 42.5],
-    [13.1, 86.4],
-    [89.9, 73.4],
-    [26.4, 72.0],
-    [61.8, 78.4],
-    [88.1, 37.3],
     [2.8, 30.4],
-    [97.4, 68.9],
+    [4.2, 59.6],
+    [7.4, 39.3],
+    [7.9, 31.6],
+    [8.3, 67.6],
+    [13.1, 86.4],
+    [17.3, 10.1],
+    [17.7, 5.2],
+    [21.6, 38.1],
+    [24.7, 42.5],
+    [26.4, 72.0],
+    [26.7, 2.0],
+    [27.0, 36.4],
+    [27.9, 64.7],
+    [33.4, 74.9],
+    [33.8, 26.9],
+    [35.4, 29.4],
+    [36.1, 48.6],
+    [44.6, 60.5],
     [49.1, 86.8],
-    [90.2, 18.4]
+    [49.7, 14.6],
+    [52.6, 16.7],
+    [52.8, 57.4],
+    [56.8, 62.8],
+    [57.2, 80.9],
+    [57.6, 51.2],
+    [61.5, 63.4],
+    [61.7, 59.6],
+    [61.8, 78.4],
+    [64.1, 18.4],
+    [64.5, 63.3],
+    [70.2, 71.9],
+    [72.8, 69.9],
+    [73.8, 29.6],
+    [74.3, 2.8],
+    [75.6, 52.4],
+    [79.6, 18.1],
+    [81.0, 4.5],
+    [82.1, 81.5],
+    [83.4, 21.7],
+    [84.7, 77.8],
+    [85.4, 69.1],
+    [88.1, 37.3],
+    [88.7, 97.4],
+    [89.7, 12.9],
+    [89.9, 73.4],
+    [95.1, 71.4],
+    [97.4, 68.9]
 ])
 
 # 방문 기록과 UAV 위치 초기화
@@ -111,63 +110,9 @@ color_indices = np.zeros(num_vertices, dtype=int)  # 색상 인덱스 초기화
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 7), gridspec_kw={'width_ratios': [1, 0.5]})
 plt.subplots_adjust(top=0.75)
 
-def classify_quadrants(point):
-    x, y = point
-    if x > 50 and y > 50:
-        return 0  # 1사분면
-    elif x < 50 and y > 50:
-        return 1  # 2사분면
-    elif x < 50 and y < 50:
-        return 2  # 3사분면
-    elif x > 50 and y < 50:
-        return 3  # 4사분면
-
-# 경로의 총 거리를 계산하는 함수
-def route_distance(route):
-    dist = 0.0
-    for i in range(1, len(route)):
-        dist += np.linalg.norm(route[i - 1] - route[i])
-    return dist
-
-def apply_2opt(route, improve_threshold=0.01, max_iterations=100):
-    best_route = route[:]
-    iteration = 0
-    improved = True
-    while improved and iteration < max_iterations:
-        improved = False
-        for i in range(1, len(best_route) - 2):
-            for j in range(i + 2, len(best_route)):
-                if j - i == 1: continue  # Skip adjacent points
-                new_route = best_route[:]
-                new_route[i:j] = best_route[j-1:i-1:-1]  # Reverse the segment between i and j
-                if route_distance(new_route) < route_distance(best_route) - improve_threshold:
-                    best_route = new_route[:]
-                    improved = True
-        iteration += 1
-    return best_route
-
-# Optimizing paths with a refined approach
-def optimize_path(paths):
-    start_end_point = np.array([50, 100])
-    optimized_paths = {}
-    for key, path in paths.items():
-        if path:
-            full_path = np.vstack([start_end_point, np.array(path), start_end_point])
-            optimized_path = apply_2opt(full_path, improve_threshold=0.01, max_iterations=50)
-            optimized_paths[key] = optimized_path
-    return optimized_paths
-
-# 각 UAV별 랜덤 경로 설정
-paths = {0: [], 1: [], 2: [], 3: []}
-for vertex in vertices:
-    quadrant = classify_quadrants(vertex)
-    paths[quadrant].append(vertex)
-
-# 각 사분면의 점 출력 확인
-for quadrant, points in paths.items():
-    print(f"Quadrant {quadrant+1} has {len(points)} points.")
-
-paths = optimize_path(paths)
+paths = {0: [[50,100], ], 
+         1: [], 
+         2: []}
 
 # UAV 초기 위치 설정
 uav_positions = np.array([charging_station for _ in range(num_uavs)], dtype=float)
