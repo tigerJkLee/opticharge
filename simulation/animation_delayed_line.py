@@ -22,6 +22,7 @@ battery_drain_uav2 = 18
 battery_charge_uav2 = 22.5
 battery_drain_uav3 = 9
 battery_charge_uav3 = 11.25
+
 charging_station = np.array([50, 100], dtype=float)  # 중앙 위치
 magma_colors = plt.get_cmap('magma')(np.linspace(0, 1, 100))
 

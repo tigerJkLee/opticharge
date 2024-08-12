@@ -118,13 +118,12 @@ paths = {0: [[50,100], ],
 uav_positions = np.array([charging_station for _ in range(num_uavs)], dtype=float)
 # uav_paths = {uav: [uav_positions[uav].copy()] for uav in range(num_uavs)}
 # current_targets = [0] * num_uavs  # 모든 UAV의 시작 목표 인덱스를 0으로 설정
-uav_paths = {uav: paths[uav] if uav in paths else [] for uav in range(num_uavs)}
-current_targets = [0] * num_uavs
+# uav_paths = {uav: paths[uav] if uav in paths else [] for uav in range(num_uavs)}
+# current_targets = [0] * num_uavs
 
 # Initialize lines for each UAV
 lines = {uav: ax1.plot([], [], color=uav_colors[uav], linewidth=2, label=f'UAV {uav}')[0] for uav in range(num_uavs)}
 path_data = {uav: np.array([paths[uav][0]]) for uav in range(num_uavs)}  # Initialize with the first coordinate
-
 
 def interpolate_position(start, end, fraction):
     """Linearly interpolate between start and end points."""
