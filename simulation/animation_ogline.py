@@ -12,16 +12,57 @@ start_time = time.time()
 num_uavs = 3
 uav_numbers = [1,2,7]
 num_charging_docks = 2
-num_vertices = 40  # 노드 수
-frame_number = 42  # 프레임 수
-uav_speed = 16
+num_vertices = 50  # 노드 수
+frame_number = 36  # 프레임 수
+uav_speed = 16 + 4
 
 # 비행 시퀀스 정의
 flight_sequences = {
     0: [[5, 7], [11, 13], [17, 19], [23, 25], [29, 31], [35, 37]],
     1: [[8, 12], [17, 21], [26, 30], [35, 39]],
-    2: [[2, 5], [14, 23], [32, 41]]
+    2: [[2, 5], [14, 23], [32, 41]],
+    3: []
 }
+
+p_5m_5to9_32to36 = [[50, 100], [7.4, 39.3], [7.9, 31.6], [1.1, 19.9], [2.8, 30.4], [50, 100]] # 4753.4403
+p_4m_1to4 = [[50, 100], [4.2, 59.6], [8.3, 67.6], [13.1, 86.4], [50, 100]] # 3219.7768
+p_6m_31to36 = [[50, 100], [33.4, 74.9], [26.4, 72.0], [27.9, 64.7], [24.7, 42.5], [21.6, 38.1], [27.0, 36.4], [17.3, 10.1], [17.7, 5.2], [26.7, 2.0], [33.8, 26.9], [35.4, 29.4], [36.1, 48.6], [44.6, 60.5], [50, 100]] # 5591.5005
+p_3m_4to6_28to30 = [[50, 100], [95.1, 71.4], [97.4, 68.9], [50, 100]] # 2837.3196
+p_3m_10to12_22to24_34to36 = [[50, 100], [88.7, 97.4], [89.9, 73.4], [84.7, 77.8], [82.1, 81.5], [50, 100]] # 2780.0143
+p_10m_13to22 = [[50, 100], [85.4, 69.1], [88.1, 37.3], [90.2, 18.4], [89.7, 12.9], [81.0, 4.5], [74.3, 2.8], [49.7, 14.6], [26.7, 2.0], [17.7, 5.2], [17.3, 10.1], [52.6, 16.7], [64.1, 18.4], [79.6, 18.1], [83.4, 21.7], [73.8, 29.6], [75.6, 52.4], [57.6, 51.2], [52.8, 57.4], [56.8, 62.8], [61.7, 59.6], [61.5, 63.4], [64.5, 63.3], [61.8, 78.4], [57.2, 80.9], [50, 100]] # 9504.0887
+p_5m_14to18_23to27 =[[50, 100], [49.1, 86.8], [44.6, 60.5], [35.4, 29.4], [33.8, 26.9], [27.0, 36.4], [21.6, 38.1], [24.7, 42.5], [36.1, 48.6], [27.9, 64.7], [26.4, 72.0], [33.4, 74.9], [50, 100]] # 4353.9823
+p_3m_16to18 = [[50, 100], [70.2, 71.9], [72.8, 69.9], [44.6, 60.5], [50, 100]] # 2687.0035
+
+# UAV 0의 경로 생성
+path_uav0 = []
+path_uav0.extend(p_3m_4to6_28to30)  # 4~6 프레임
+path_uav0.extend(p_3m_10to12_22to24_34to36)  # 10~12 프레임
+path_uav0.extend(p_3m_16to18)  # 16~18 프레임
+path_uav0.extend(p_3m_10to12_22to24_34to36)  # 22~24 프레임
+path_uav0.extend(p_3m_4to6_28to30)  # 28~30 프레임
+path_uav0.extend(p_3m_10to12_22to24_34to36)  # 34~36 프레임
+
+path_uav1 = []
+path_uav1.extend(p_5m_5to9_32to36)
+path_uav1.extend(p_5m_14to18_23to27)
+path_uav1.extend(p_5m_14to18_23to27)
+path_uav1.extend(p_5m_5to9_32to36)
+
+path_uav2 = []
+path_uav2.extend(p_4m_1to4)
+path_uav2.extend(p_10m_13to22)
+path_uav2.extend(p_6m_31to36)
+
+# 경로를 딕셔너리로 정의
+paths = {
+    0: path_uav0,
+    1: path_uav1,
+    2: path_uav2
+}
+
+# 각 UAV의 경로 확인
+for uav_id, path in paths.items():
+    print(f"UAV {uav_id} Path: {path}")
 
 battery_drain_uav1 = 30
 battery_charge_uav1 = 30
@@ -90,6 +131,8 @@ vertices = np.array([
 # 방문 기록과 UAV 위치 초기화
 visited = np.zeros((num_uavs, num_vertices), dtype=bool)
 uav_positions = np.tile(charging_station, (num_uavs, 1))
+visit_counts = np.zeros(num_vertices, dtype=int)
+
 
 # 비행 중 여부와 현재 목표
 in_flight = np.zeros(num_uavs, dtype=bool)
@@ -110,64 +153,6 @@ color_indices = np.zeros(num_vertices, dtype=int)  # 색상 인덱스 초기화
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 7), gridspec_kw={'width_ratios': [1, 0.5]})
 plt.subplots_adjust(top=0.75)
-
-def classify_quadrants(point):
-    x, y = point
-    if x > 50 and y > 50:
-        return 0  # 1사분면
-    elif x < 50 and y > 50:
-        return 1  # 2사분면
-    elif x < 50 and y < 50:
-        return 2  # 3사분면
-    elif x > 50 and y < 50:
-        return 3  # 4사분면
-
-# 경로의 총 거리를 계산하는 함수
-def route_distance(route):
-    dist = 0.0
-    for i in range(1, len(route)):
-        dist += np.linalg.norm(route[i - 1] - route[i])
-    return dist
-
-def apply_2opt(route, improve_threshold=0.01, max_iterations=100):
-    best_route = route[:]
-    iteration = 0
-    improved = True
-    while improved and iteration < max_iterations:
-        improved = False
-        for i in range(1, len(best_route) - 2):
-            for j in range(i + 2, len(best_route)):
-                if j - i == 1: continue  # Skip adjacent points
-                new_route = best_route[:]
-                new_route[i:j] = best_route[j-1:i-1:-1]  # Reverse the segment between i and j
-                if route_distance(new_route) < route_distance(best_route) - improve_threshold:
-                    best_route = new_route[:]
-                    improved = True
-        iteration += 1
-    return best_route
-
-# Optimizing paths with a refined approach
-def optimize_path(paths):
-    start_end_point = np.array([50, 100])
-    optimized_paths = {}
-    for key, path in paths.items():
-        if path:
-            full_path = np.vstack([start_end_point, np.array(path), start_end_point])
-            optimized_path = apply_2opt(full_path, improve_threshold=0.01, max_iterations=50)
-            optimized_paths[key] = optimized_path
-    return optimized_paths
-
-# 각 UAV별 랜덤 경로 설정
-paths = {0: [], 1: [], 2: [], 3: []}
-for vertex in vertices:
-    quadrant = classify_quadrants(vertex)
-    paths[quadrant].append(vertex)
-
-# 각 사분면의 점 출력 확인
-for quadrant, points in paths.items():
-    print(f"Quadrant {quadrant+1} has {len(points)} points.")
-
-paths = optimize_path(paths)
 
 # UAV 초기 위치 설정
 uav_positions = np.array([charging_station for _ in range(num_uavs)], dtype=float)
@@ -219,6 +204,39 @@ def init():
         switches.append(circle)
     
     return [] #lines.values()
+
+def update_uav_target(frame, uav_index):
+    if uav_index == 0:
+        if frame == 4:
+            return 0
+        elif frame == 10:
+            return len(p_3m_4to6_28to30)
+        elif frame == 16:
+            return len(p_3m_4to6_28to30) + len(p_3m_10to12_22to24_34to36)
+        elif frame == 22:
+            return len(p_3m_4to6_28to30) + len(p_3m_10to12_22to24_34to36) + len(p_3m_16to18)
+        elif frame == 28:
+            return len(p_3m_4to6_28to30) + len(p_3m_10to12_22to24_34to36) + len(p_3m_16to18) + len(p_3m_10to12_22to24_34to36)
+        elif frame == 34:
+            return len(p_3m_4to6_28to30) + len(p_3m_10to12_22to24_34to36) + len(p_3m_16to18) + len(p_3m_10to12_22to24_34to36) + len(p_3m_4to6_28to30)
+    elif uav_index == 1:
+        if frame == 5:
+            return 0
+        elif frame == 14:
+            return len(p_5m_5to9_32to36)
+        elif frame == 23:
+            return len(p_5m_5to9_32to36) + len(p_5m_14to18_23to27)
+        elif frame == 32:
+            return len(p_5m_5to9_32to36) + len(p_5m_14to18_23to27) + len(p_5m_14to18_23to27)
+    elif uav_index == 2:
+        if frame == 0:
+            return 0
+        elif frame == 13:
+            return len(p_4m_1to4)
+        elif frame == 31:
+            return len(p_4m_1to4) + len(p_10m_13to22)
+    return None  # 경로를 변경하지 않는 경우
+
 
 def update_battery_levels(frame, battery_levels):
     new_battery_levels = battery_levels.copy()
@@ -315,39 +333,102 @@ def update(frame):
     ax2.set_ylim(0, num_uavs)
 
     # Vertices 그리기
-    for i, pos in enumerate(vertices):
-        ax1.scatter(*pos, color='black')
+    # for i, pos in enumerate(vertices):
+    #     ax1.scatter(*pos, color='black')
+
+    for v_idx, pos in enumerate(vertices):
+        if visit_counts[v_idx] == 0:
+            color = 'black'  # 방문하지 않은 점은 검정색
+        elif visit_counts[v_idx] == 1:
+            color = 'blue'  # 한 번 방문한 점은 파란색
+        elif visit_counts[v_idx] >= 2:
+            color = 'green'  # 두 번 이상 방문한 점은 초록색
+        ax1.scatter(*pos, color=color)
 
     # 각 UAV 업데이트 및 배터리 상태 그리기
     battery_box_height = 1
+
     # Define triangle size
     triangle_height = 1  # Height of the triangle
     triangle_width = 5   # Base width of the triangle
 
     # Redraw dynamic text
     text_handle.set_text(f"Number of charging docks = {num_charging_docks}, Number of vehicles = {num_uavs}")
-    
+
     for i in range(num_uavs):
+        # new_target_index = update_uav_target(frame, i)
+        # if new_target_index is not None:
+        #     current_targets[i] = new_target_index
 
-        # 여기서부터 drone
-        if (i < 2 and frame > 20) or (i >= 2 and frame <= 14):
-            uav_positions[i] = charging_station
-            current_targets[i] = 0  # 충전 중이거나 대기 중일 때는 목표를 재설정
-        else:
+        # # if (i == 0 and frame <= 3) or (i == 2 and 7 <= frame <= 9) or (i==2 and 13<= frame <= 15) or (i==2 and 19 <= frame <= 21) or (i==2 and 25<= frame <= 27) or (i==2 and 31 <= frame <=33):
+        # #     uav_positions[i] = charging_station
+        # #     current_targets[i] = 0  # 충전 중이거나 대기 중일 때는 목표를 재설정
+        # # if (i == 1 and frame <= 4) or (i ==1 and 10 <= frame <= 13) or (i == 1 and 19 <= frame <= 22) or (i == 1 and 28 <= frame <= 31):
+        # #     uav_positions[i] = charging_station
+        # #     current_targets[i] = 0  # 충전 중이거나 대기 중일 때는 목표를 재설정
+        # # if (i == 2 and 5 <= frame <= 12) or (i == 0 and 23 <= frame <= 30):
+        # #     uav_positions[i] = charging_station
+        # #     current_targets[i] = 0  # 충전 중이거나 대기 중일 때는 목표를 재설정
+        # else:
+        # if current_targets[i] < len(paths[i]):
             # 현재 목표 위치 설정
-            target = np.array(paths[i][current_targets[i]], dtype=float)
-            direction = target - uav_positions[i]
-            distance = np.linalg.norm(direction)
+            # if i == 0:
+            #     if frame == 4:
+            #         current_targets[i] == 0
+            #     elif frame == 10:
+            #         current_targets[i] == len(p_3m_4to6_28to30)+1
+            #     elif frame == 16:
+            #         current_targets[i] == len(p_3m_4to6_28to30)+len(p_3m_10to12_22to24_34to36)+1
+            #     elif frame == 22:
+            #         current_targets[i] == len(p_3m_4to6_28to30)+len(p_3m_10to12_22to24_34to36)+len(p_3m_16to18)+1
+            #     elif frame == 28:
+            #         current_targets[i] == len(p_3m_4to6_28to30)+len(p_3m_10to12_22to24_34to36)+len(p_3m_16to18)+len(p_3m_10to12_22to24_34to36)+1
+            #     elif frame == 34:
+            #         current_targets[i] == len(p_3m_4to6_28to30)+len(p_3m_10to12_22to24_34to36)+len(p_3m_16to18)+len(p_3m_10to12_22to24_34to36)+len(p_3m_4to6_28to30)+1
 
-            if distance > uav_speed:
-                # 목표까지의 거리가 UAV 속도보다 크면 방향으로 이동
-                direction = direction / distance * uav_speed
-                uav_positions[i] += direction
+
+            # elif i == 1:
+            #     if frame == 5:
+            #         current_targets[i] == 0
+            #     elif frame == 14:
+            #         current_targets[i] == len(p_5m_5to9_32to36)+1
+            #     elif frame == 23:
+            #         current_targets[i] == len(p_5m_5to9_32to36)+len(p_5m_14to18_23to27)+1
+            #     elif frame == 32:
+            #         current_targets[i] == len(p_5m_5to9_32to36)+len(p_5m_14to18_23to27)+len(p_5m_14to18_23to27)+1
+            # elif i == 2:
+            #     if frame == 0:
+            #         current_targets[i] == 0
+            #     elif frame == 13:
+            #         current_targets[i] == len(p_4m_1to4)+1
+            #     elif frame == 31:
+            #         current_targets[i] == len(p_4m_1to4)+len(p_10m_13to22)+1
+
+        target = np.array(paths[i][current_targets[i]], dtype=float)
+        direction = target - uav_positions[i]
+        distance = np.linalg.norm(direction)
+
+        if distance > uav_speed:
+            # 목표까지의 거리가 UAV 속도보다 크면 방향으로 이동
+            direction = direction / distance * uav_speed
+            uav_positions[i] += direction
+        else:
+            # 목표에 도달하면 다음 목표로 인덱스를 업데이트
+            uav_positions[i] = target  # 목표 위치에 정확히 도달
+            if np.allclose(uav_positions[i], charging_station):
+                # UAV가 [50, 100] 위치에 도달하면 선을 리셋
+                path_data[i] = np.array([uav_positions[i]])  # UAV의 현재 위치를 첫 좌표로 설정
+                lines[i].set_data([], [])  # 기존 선 데이터 초기화
             else:
-                # 목표에 도달하면 다음 목표로 인덱스를 업데이트
-                uav_positions[i] = target  # 목표 위치에 정확히 도달
-                if current_targets[i] < len(paths[i]) - 1:
-                    current_targets[i] += 1  # 다음 목표로 이동
+                path_data[i] = np.vstack([path_data[i], uav_positions[i]])
+
+            # print(vertices)
+            for v_idx, vertex in enumerate(vertices):
+                if np.allclose(target, vertex):
+                    visit_counts[v_idx] += 1  # 해당 점 방문 횟수 증가
+
+            if current_targets[i] < len(paths[i]) - 1:
+                current_targets[i] += 1  # 다음 목표로 이동
         
         # 선 데이터 업데이트
         path_data[i] = np.vstack([path_data[i], uav_positions[i]])
@@ -473,7 +554,7 @@ def update(frame):
             switch.set_facecolor('green' if (frame <= 3 or 5 <= frame <= 15 or 19 <= frame <= 21 or 23 <= frame <= 33) else 'none')
         elif i == 1:
             # 두 번째 스위치는 프레임 5~19 사이에 파란색
-            switch.set_facecolor('green' if (3 <= frame <= 9 or 12 <= frame <= 15 or 21 <= frame <= 27 or 30 <= frame <= 33) else 'none')
+            switch.set_facecolor('green' if (frame <=4 or 10 <= frame <= 13 or 19 <= frame <= 22 or 25 <= frame <= 31) else 'none')
 
     ax1.legend(loc='upper right').set_visible(False)
     # 눈금 제거 및 축 범위 설정
@@ -490,7 +571,7 @@ ani = animation.FuncAnimation(fig, update, frames=frame_number, init_func=init, 
 writer = FFMpegWriter(fps=15, metadata=dict(artist='Me'), bitrate=1800)
 
 # Save the animation
-# ani.save('uav_simulation_og.mp4', writer=writer)
+ani.save('uav_simulation_og_4.mp4', writer=writer)
 
 # Display the plot
 plt.show()
