@@ -13,7 +13,7 @@ num_uavs = 3
 uav_numbers = [1,2,7]
 num_charging_docks = 2
 num_vertices = 50  # 노드 수
-frame_number = 36  # 프레임 수
+frame_number = 50  # 프레임 수
 uav_speed = 16 + 4
 
 # 비행 시퀀스 정의
@@ -499,7 +499,7 @@ ani = animation.FuncAnimation(fig, update, frames=frame_number, init_func=init, 
 writer = FFMpegWriter(fps=15, metadata=dict(artist='Me'), bitrate=1800)
 
 # Save the animation
-ani.save('uav_simulation_dl_1.mp4', writer=writer)
+ani.save('uav_simulation_dl_no.mp4', writer=writer)
 
 # Display the plot
 plt.show()
