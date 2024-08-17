@@ -4,7 +4,14 @@ import matplotlib.animation as animation
 import seaborn as sns
 import time
 from matplotlib.animation import FFMpegWriter
-
+# 글씨 크기 전역 설정
+plt.rc('font', size=12)         # 기본 글씨 크기
+plt.rc('axes', titlesize=16)    # 축 제목 크기
+plt.rc('axes', labelsize=14)    # 축 라벨 크기
+plt.rc('xtick', labelsize=12)   # x축 눈금 글씨 크기
+plt.rc('ytick', labelsize=12)   # y축 눈금 글씨 크기
+plt.rc('legend', fontsize=12)   # 범례 글씨 크기
+plt.rc('figure', titlesize=18)  # 그림 제목 크기
 # 시간 측정 시작
 start_time = time.time()
 
@@ -14,13 +21,13 @@ uav_numbers = [1,2,7]
 num_charging_docks = 2
 num_vertices = 50  # 노드 수
 frame_number = 50  # 프레임 수
-uav_speed = 16 + 4
+uav_speed = 16*4
 
 # 비행 시퀀스 정의
 flight_sequences = {
-    0: [[5, 7], [11, 13], [17, 19], [23, 25], [29, 31], [35, 37]],
-    1: [[8, 12], [17, 21], [26, 30], [35, 39]],
-    2: [[2, 5], [14, 23], [32, 41]],
+    0: [[4, 6], [10, 12], [16, 18], [22, 24], [28, 30], [34, 36]],
+    1: [[1,2], [7, 11], [16, 20], [25, 29], [34, 36]],
+    2: [[1, 4], [13, 22], [31, 36]],
     3: []
 }
 p_5m_5to9_32to36 = [[50, 100], [7.4, 39.3], [7.9, 31.6], [1.1, 19.9], [2.8, 30.4], [50, 100]] # 4753.4403
@@ -63,6 +70,8 @@ paths = {
 # 각 UAV의 경로 확인
 for uav_id, path in paths.items():
     print(f"UAV {uav_id} Path: {path}")
+
+uav_colors = ['pink', 'green', 'blue']
 
 battery_drain_uav1 = 30
 battery_charge_uav1 = 30
@@ -130,7 +139,15 @@ vertices = np.array([
 ])
 
 # UAV별 방문할 vertices 분배, vertices 개수를 초과하지 않도록 확인
+visited = np.zeros((num_uavs, num_vertices), dtype=bool)
+uav_positions = np.tile(charging_station, (num_uavs, 1))
+visit_counts = np.zeros(num_vertices, dtype=int)
+vertex_colors = np.zeros((num_vertices, 3))
 
+
+# 비행 중 여부와 현재 목표
+in_flight = np.zeros(num_uavs, dtype=bool)
+current_targets = np.full(num_uavs, -1, dtype=int)
 # 배터리 상태 및 위치 초기화
 battery_levels = [10.0, 46.0, 46.0]
 battery_history = np.zeros((3, frame_number))
@@ -278,6 +295,8 @@ for frame in range(0, frame_number):
    
 # print(battery_history)
 def update(frame):
+    global uav_speed, vertex_colors
+
     # 그래픽 객체만 초기화    # Iterate over the patches and remove each one
     for patch in ax1.patches:
         patch.remove()
@@ -288,7 +307,7 @@ def update(frame):
     # ax1.clear()
     ax2.clear()
     ax1.set_title(f"Time: {frame} minutes")
-    ax2.set_title("Current Battery Status")
+    ax2.set_title("New Battery Status")
     ax1.add_patch(plt.Rectangle(charging_station - 5, 10, 10, color='black'))
         
     # Reset limits after clearing
@@ -298,6 +317,11 @@ def update(frame):
     ax1.set_ylim(0, 100)
     ax2.set_xlim(0, 100)
     ax2.set_ylim(0, num_uavs)
+
+    # 모든 점이 한번씩 방문되면 색상을 초기화
+    if np.all(visit_counts > 0):
+        vertex_colors = np.zeros((num_vertices, 3))  # 모든 점을 검정색(RGB: [0, 0, 0])으로 초기화
+        visit_counts[:] = 0
 
     # Vertices 그리기
     # for i, pos in enumerate(vertices):
@@ -324,156 +348,165 @@ def update(frame):
     
     for i in range(num_uavs):
 
-        # # 여기서부터 drone
-        # if (i < 2 and frame > 20) or (i >= 2 and frame <= 14):
-        #     uav_positions[i] = charging_station
-        #     current_targets[i] = 0  # 충전 중이거나 대기 중일 때는 목표를 재설정
-        # else:
-        # 현재 목표 위치 설정
-        target = np.array(paths[i][current_targets[i]], dtype=float)
-        direction = target - uav_positions[i]
-        distance = np.linalg.norm(direction)
+        if current_targets[i] < len(paths[i]):
+            target = np.array(paths[i][current_targets[i]], dtype=float)
+            direction = target - uav_positions[i]
+            distance = np.linalg.norm(direction)
 
-        if distance > uav_speed:
-            # 목표까지의 거리가 UAV 속도보다 크면 방향으로 이동
-            direction = direction / distance * uav_speed
-            uav_positions[i] += direction
-        else:
-            # 목표에 도달하면 다음 목표로 인덱스를 업데이트
-            uav_positions[i] = target  # 목표 위치에 정확히 도달
-            if np.allclose(uav_positions[i], charging_station):
-                # UAV가 [50, 100] 위치에 도달하면 선을 리셋
-                path_data[i] = np.array([uav_positions[i]])  # UAV의 현재 위치를 첫 좌표로 설정
-                lines[i].set_data([], [])  # 기존 선 데이터 초기화
+            if distance > uav_speed:
+                # 목표까지의 거리가 UAV 속도보다 크면 방향으로 이동
+                direction = direction / distance * uav_speed
+                uav_positions[i] += direction
             else:
-                path_data[i] = np.vstack([path_data[i], uav_positions[i]])
+                # 목표에 도달하면 다음 목표로 인덱스를 업데이트
+                uav_positions[i] = target  # 목표 위치에 정확히 도달
 
-            # print(vertices)
-            for v_idx, vertex in enumerate(vertices):
-                if np.allclose(target, vertex):
-                    visit_counts[v_idx] += 1  # 해당 점 방문 횟수 증가
+                # if np.allclose(uav_positions[i], charging_station):
+                # if frame == 30:
+                #     lines[i].set_data([], [])
+                    
+                # # UAV가 충전소에 도달하면 경로 초기화
+                if np.allclose(uav_positions[i], charging_station):
+                    path_data[i] = np.array([uav_positions[i]])  # 현재 위치를 경로의 첫 좌표로 초기화
+                    lines[i].set_data([], [])  # 기존 선 데이터 초기화
+                # else:
+                #     path_data[i] = np.vstack([path_data[i], uav_positions[i]])
 
-            if current_targets[i] < len(paths[i]) - 1:
-                current_targets[i] += 1  # 다음 목표로 이동
+                if current_targets[i] < len(paths[i]) - 1:
+                    current_targets[i] += 1  # 다음 목표로 이동
+
+                # 방문한 점의 색상 업데이트
+                for v_idx, vertex in enumerate(vertices):
+                    if np.allclose(target, vertex):
+                        vertex_colors[v_idx] = uav_colors[i]  # UAV 색상으로 업데이트
+                        visit_counts[v_idx] += 1  # 방문 횟수 증가
+
+        if np.allclose(uav_positions[i], charging_station):
+            path_data[i] = np.array([uav_positions[i]])
+            lines[i].set_data([], [])
+
+    for v_idx, pos in enumerate(vertices):
+        ax1.scatter(*pos, color=vertex_colors[v_idx])
         
         # 선 데이터 업데이트
+    for i in range(num_uavs):
         path_data[i] = np.vstack([path_data[i], uav_positions[i]])
         lines[i].set_data(path_data[i][:, 0], path_data[i][:, 1])
 
-        battery_fill = (battery_levels[i] / 100.0) * 50
+    battery_fill = (battery_levels[i] / 100.0) * 50
         
-        # 마지막 프레임인 경우, 다음 프레임의 데이터가 없으므로 현재 프레임과 이전 프레임을 비교
-        if frame == frame_number - 1:  # frame_number는 전체 프레임 수
-            if battery_history[i, frame] > battery_history[i, frame - 1]:
-                # print("green",i, battery_history[i, frame], battery_history[i, frame+1])
-                facecolor = 'green'
-            else:
-                facecolor = 'red'
+    # 마지막 프레임인 경우, 다음 프레임의 데이터가 없으므로 현재 프레임과 이전 프레임을 비교
+    if frame == frame_number - 1:  # frame_number는 전체 프레임 수
+        if battery_history[i, frame] > battery_history[i, frame - 1]:
+            # print("green",i, battery_history[i, frame], battery_history[i, frame+1])
+            facecolor = 'green'
         else:
-            if battery_history[i, frame] > battery_history[i, frame - 1]:
-                # print("green",i, battery_history[i, frame], battery_history[i, frame+1])
-                facecolor = 'green'  # 충전 중
-            else:
-                # print("red",i, battery_history[i, frame], battery_history[i, frame+1])
-                facecolor = 'red'  # 방전 중
-        
-        ax2.add_patch(plt.Rectangle((5, i * (battery_box_height + 5)), battery_fill, battery_box_height, facecolor=facecolor, edgecolor='black'))
-
-
-        ax2.text(60, i * (battery_box_height + 5) + battery_box_height / 2, f'{battery_levels[i]:.1f}%', verticalalignment='center')
-        ax2.text(-9, i * (battery_box_height + 5) + battery_box_height / 2, f'UAV {uav_numbers[i]}', verticalalignment='center')
-
-        # Draw UAVs
-        ax1.add_patch(plt.Polygon(uav_positions[i] + np.array([[0, 2], [-1, -1], [1, -1]]),
-                                  closed=True, color=uav_colors[i], edgecolor='black', linewidth=2))
-
-        #여기까지 드론
-        
-        # Update battery levels based on UAV number and frame
-        if frame == 0:
-            pass
+            facecolor = 'red'
+    else:
+        if battery_history[i, frame] > battery_history[i, frame - 1]:
+            # print("green",i, battery_history[i, frame], battery_history[i, frame+1])
+            facecolor = 'green'  # 충전 중
         else:
-            if i == 0:  # UAV1 
-                if frame <= 3:
-                    battery_levels[i] += battery_charge_uav1
-                elif 3 < frame <= 6:
-                    battery_levels[i] -= battery_drain_uav1
-                elif 6 < frame <= 9:
-                    battery_levels[i] += battery_charge_uav1
-                elif 9 < frame <= 12:
-                    battery_levels[i] -= battery_drain_uav1
-                elif 12 < frame <= 15:
-                    battery_levels[i] += battery_charge_uav1
-                elif 15 < frame <= 18:
-                    battery_levels[i] -= battery_drain_uav1
-                elif 18 < frame <= 21:
-                    battery_levels[i] += battery_charge_uav1
-                elif 21 < frame <= 24:
-                    battery_levels[i] -= battery_drain_uav1
-                elif 24 < frame <= 27:
-                    battery_levels[i] += battery_charge_uav1
-                elif 27 < frame <= 30:
-                    battery_levels[i] -= battery_drain_uav1
-                elif 30 < frame <= 33:
-                    battery_levels[i] += battery_charge_uav1
-                elif 33 < frame <= 34:
-                    battery_levels[i] -= battery_drain_uav1
-                else:
-                    battery_levels[i] += battery_charge_uav1
+            # print("red",i, battery_history[i, frame], battery_history[i, frame+1])
+            facecolor = 'red'  # 방전 중
+    
+    ax2.add_patch(plt.Rectangle((5, i * (battery_box_height + 5)), battery_fill, battery_box_height, facecolor=facecolor, edgecolor='black'))
 
-            elif i == 1: # UAV2
-                if frame <= 2:
-                    battery_levels[i] -= battery_drain_uav2
-                elif 2 < frame <= 6:
-                    battery_levels[i] += battery_charge_uav2
-                elif 6 < frame <= 11:
-                    battery_levels[i] -= battery_drain_uav2
-                elif 11 < frame <= 15:
-                    battery_levels[i] += battery_charge_uav2
-                elif 15 < frame <= 20:
-                    battery_levels[i] -= battery_drain_uav2
-                elif 20 < frame <= 24:
-                    battery_levels[i] += battery_charge_uav2
-                elif 24 < frame <= 29:
-                    battery_levels[i] -= battery_drain_uav2
-                elif 29 < frame <= 33:
-                    battery_levels[i] += battery_charge_uav2
-                else:
-                    battery_levels[i] -= battery_drain_uav2
 
-            else:  # UAV3
-                if frame <= 4:
-                    battery_levels[i] -= battery_drain_uav3
-                elif 4 < frame <= 12:
-                    battery_levels[i] += battery_charge_uav3
-                elif 12 < frame <= 22:
-                    battery_levels[i] -= battery_drain_uav3
-                elif 22 < frame <= 30:
-                    battery_levels[i] += battery_charge_uav3
-                else:
-                    battery_levels[i] -= battery_drain_uav3
+    ax2.text(60, i * (battery_box_height + 5) + battery_box_height / 2, f'{battery_levels[i]:.1f}%', verticalalignment='center')
+    ax2.text(-9, i * (battery_box_height + 5) + battery_box_height / 2, f'UAV {uav_numbers[i]}', verticalalignment='center')
 
-        # Ensuring battery levels stay within 0-100%
-        battery_levels[i] = max(10, min(battery_levels[i], 100))
+    # Draw UAVs
+    ax1.add_patch(plt.Polygon(uav_positions[i] + np.array([[0, 2], [-1, -1], [1, -1]]),
+                                closed=True, color=uav_colors[i], edgecolor='black', linewidth=2))
 
-        # Display battery status
-        ax2.add_patch(plt.Rectangle((5, i * (battery_box_height + 5)), 50, battery_box_height, edgecolor='black', facecolor='none'))
-        battery_fill = (battery_levels[i] / 100.0) * 50
-        # ax2.add_patch(plt.Rectangle((5, i * (battery_box_height + 5)), battery_fill, battery_box_height, facecolor='red' if battery_levels[i] > 50 else 'green'))
+    #여기까지 드론
+    
+    # Update battery levels based on UAV number and frame
+    if frame == 0:
+        pass
+    else:
+        if i == 0:  # UAV1 
+            if frame <= 3:
+                battery_levels[i] += battery_charge_uav1
+            elif 3 < frame <= 6:
+                battery_levels[i] -= battery_drain_uav1
+            elif 6 < frame <= 9:
+                battery_levels[i] += battery_charge_uav1
+            elif 9 < frame <= 12:
+                battery_levels[i] -= battery_drain_uav1
+            elif 12 < frame <= 15:
+                battery_levels[i] += battery_charge_uav1
+            elif 15 < frame <= 18:
+                battery_levels[i] -= battery_drain_uav1
+            elif 18 < frame <= 21:
+                battery_levels[i] += battery_charge_uav1
+            elif 21 < frame <= 24:
+                battery_levels[i] -= battery_drain_uav1
+            elif 24 < frame <= 27:
+                battery_levels[i] += battery_charge_uav1
+            elif 27 < frame <= 30:
+                battery_levels[i] -= battery_drain_uav1
+            elif 30 < frame <= 33:
+                battery_levels[i] += battery_charge_uav1
+            elif 33 < frame <= 34:
+                battery_levels[i] -= battery_drain_uav1
+            else:
+                battery_levels[i] += battery_charge_uav1
 
-        # Define text for battery percentage
-        text_x = 60  # x position for battery percentage text
-        text_y = i * (battery_box_height + 5) + battery_box_height / 2
-        # ax2.text(text_x, text_y, f'{battery_levels[i]:.1f}%', verticalalignment='center')
+        elif i == 1: # UAV2
+            if frame <= 2:
+                battery_levels[i] -= battery_drain_uav2
+            elif 2 < frame <= 6:
+                battery_levels[i] += battery_charge_uav2
+            elif 6 < frame <= 11:
+                battery_levels[i] -= battery_drain_uav2
+            elif 11 < frame <= 15:
+                battery_levels[i] += battery_charge_uav2
+            elif 15 < frame <= 20:
+                battery_levels[i] -= battery_drain_uav2
+            elif 20 < frame <= 24:
+                battery_levels[i] += battery_charge_uav2
+            elif 24 < frame <= 29:
+                battery_levels[i] -= battery_drain_uav2
+            elif 29 < frame <= 33:
+                battery_levels[i] += battery_charge_uav2
+            else:
+                battery_levels[i] -= battery_drain_uav2
 
-        # Draw UAV icon to the right of the battery percentage
-        icon_x = text_x -1  # x position adjusted to be right of the battery text
-        icon_y = text_y
+        else:  # UAV3
+            if frame <= 4:
+                battery_levels[i] -= battery_drain_uav3
+            elif 4 < frame <= 12:
+                battery_levels[i] += battery_charge_uav3
+            elif 12 < frame <= 22:
+                battery_levels[i] -= battery_drain_uav3
+            elif 22 < frame <= 30:
+                battery_levels[i] += battery_charge_uav3
+            else:
+                battery_levels[i] -= battery_drain_uav3
 
-        triangle_points = [(icon_x, icon_y),  # Top point of the triangle
-                            (icon_x - triangle_width / 2, icon_y - triangle_height / 2),  # Bottom left point
-                            (icon_x - triangle_width / 2, icon_y + triangle_height / 2) ] # Bottom right point    
-        ax2.add_patch(plt.Polygon(triangle_points, closed=True, color=uav_colors[i], edgecolor='black', linewidth=1))
+    # Ensuring battery levels stay within 0-100%
+    battery_levels[i] = max(10, min(battery_levels[i], 100))
+
+    # Display battery status
+    ax2.add_patch(plt.Rectangle((5, i * (battery_box_height + 5)), 50, battery_box_height, edgecolor='black', facecolor='none'))
+    battery_fill = (battery_levels[i] / 100.0) * 50
+    # ax2.add_patch(plt.Rectangle((5, i * (battery_box_height + 5)), battery_fill, battery_box_height, facecolor='red' if battery_levels[i] > 50 else 'green'))
+
+    # Define text for battery percentage
+    text_x = 60  # x position for battery percentage text
+    text_y = i * (battery_box_height + 5) + battery_box_height / 2
+    # ax2.text(text_x, text_y, f'{battery_levels[i]:.1f}%', verticalalignment='center')
+
+    # Draw UAV icon to the right of the battery percentage
+    icon_x = text_x -1  # x position adjusted to be right of the battery text
+    icon_y = text_y
+
+    triangle_points = [(icon_x, icon_y),  # Top point of the triangle
+                        (icon_x - triangle_width / 2, icon_y - triangle_height / 2),  # Bottom left point
+                        (icon_x - triangle_width / 2, icon_y + triangle_height / 2) ] # Bottom right point    
+    ax2.add_patch(plt.Polygon(triangle_points, closed=True, color=uav_colors[i], edgecolor='black', linewidth=1))
 
     # Update charging dock statuses
     for i, switch in enumerate(switches):
@@ -499,7 +532,7 @@ ani = animation.FuncAnimation(fig, update, frames=frame_number, init_func=init, 
 writer = FFMpegWriter(fps=15, metadata=dict(artist='Me'), bitrate=1800)
 
 # Save the animation
-ani.save('uav_simulation_dl_no.mp4', writer=writer)
+ani.save('uav_simulation_dl_test1.mp4', writer=writer)
 
 # Display the plot
 plt.show()
